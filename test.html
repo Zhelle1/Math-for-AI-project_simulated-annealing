@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulated Annealing Visualization</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+        }
+        h1 { margin-bottom: 10px; color: #2c3e50; }
+        p { margin-top: 0; color: #7f8c8d; }
+        
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            max-width: 800px;
+            width: 100%;
+        }
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+            background: #fff;
+            border: 1px solid #eee;
+            border-radius: 8px;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+
+        #startBtn { background: #3498db; color: white; }
+        #startBtn:hover { background: #2980b9; }
+        #resetBtn { background: #e74c3c; color: white; }
+        #resetBtn:hover { background: #c0392b; }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .stat-box {
+            background: #eaf2f8;
+            padding: 10px 15px;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Simulated Annealing Algorithm</h1>
+    <p>Adjust the parameters and observe how the particle escapes local optima to find the global minimum.</p>
+
+    <div class="container">
+        <canvas id="saCanvas" width="760" height="400"></canvas>
+
+        <div class="stats">
+            <div class="stat-box">Current Temp: <span id="tempDisplay">100.00</span></div>
+            <div class="stat-box">Current Energy: <span id="currentCostDisplay">0.00</span></div>
+            <div class="stat-box" style="color: #d35400;">Best Energy Found: <span id="bestCostDisplay">0.00</span></div>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="initialTemp">Initial Temp: <span id="tempVal">100</span></label>
+                <input type="range" id="initialTemp" min="10" max="200" step="10" value="100">
+            </div>
+            
+            <div class="control-group">
+                <label for="coolingRate">Cooling Rate: <span id="rateVal">0.990</span></label>
+                <input type="range" id="coolingRate" min="0.800" max="0.999" step="0.001" value="0.990">
+            </div>
+
+            <button id="startBtn">Start Search</button>
+            <button id="resetBtn">Reset</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('saCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // UI Elements
+        const tempSlider = document.getElementById('initialTemp');
+        const rateSlider = document.getElementById('coolingRate');
+        const tempValLabel = document.getElementById('tempVal');
+        const rateValLabel = document.getElementById('rateVal');
+        const startBtn = document.getElementById('startBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const tempDisplay = document.getElementById('tempDisplay');
+        const currentCostDisplay = document.getElementById('currentCostDisplay');
+        const bestCostDisplay = document.getElementById('bestCostDisplay');
+
+        // Objective function: A function with multiple local minima f(x) = x^2/20 + 4*sin(2x)
+        function f(x) {
+            return (x * x) / 20 + 4 * Math.sin(2 * x);
+        }
+
+        // Coordinate mapping parameters
+        const xMin = -15, xMax = 15;
+        const yMin = -10, yMax = 20;
+
+        function mapX(x) {
+            return (x - xMin) / (xMax - xMin) * canvas.width;
+        }
+
+        function mapY(y) {
+            // Invert Y axis so lower values are at the bottom
+            return canvas.height - ((y - yMin) / (yMax - yMin) * canvas.height);
+        }
+
+        // Algorithm state variables
+        let currentX, currentY;
+        let bestX, bestY;
+        let temperature;
+        let coolingRate;
+        let isAnimating = false;
+        let animationId;
+
+        // Update slider values
+        tempSlider.oninput = () => tempValLabel.textContent = tempSlider.value;
+        rateSlider.oninput = () => rateValLabel.textContent = rateSlider.value;
+
+        // Draw background curve
+        function drawCurve() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw grid
+            ctx.strokeStyle = "#eee";
+            ctx.beginPath();
+            ctx.moveTo(0, mapY(0)); ctx.lineTo(canvas.width, mapY(0)); // X axis
+            ctx.moveTo(mapX(0), 0); ctx.lineTo(mapX(0), canvas.height); // Y axis
+            ctx.stroke();
+
+            // Draw objective function curve
+            ctx.beginPath();
+            ctx.strokeStyle = "#2c3e50";
+            ctx.lineWidth = 2;
+            for (let px = 0; px <= canvas.width; px++) {
+                let x = xMin + (px / canvas.width) * (xMax - xMin);
+                let y = f(x);
+                let py = mapY(y);
+                if (px === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.stroke();
+        }
+
+        // Draw particles
+        function drawParticles() {
+            // Draw best solution found so far (Orange circle)
+            ctx.beginPath();
+            ctx.arc(mapX(bestX), mapY(bestY), 8, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(211, 84, 0, 0.5)"; // Semi-transparent orange
+            ctx.fill();
+            ctx.strokeStyle = "#d35400";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Draw current exploration point (Red solid circle)
+            ctx.beginPath();
+            ctx.arc(mapX(currentX), mapY(currentY), 6, 0, Math.PI * 2);
+            ctx.fillStyle = "#e74c3c";
+            ctx.fill();
+        }
+
+        // Update UI statistics
+        function updateStats() {
+            tempDisplay.textContent = temperature.toFixed(2);
+            currentCostDisplay.textContent = currentY.toFixed(2);
+            bestCostDisplay.textContent = bestY.toFixed(2);
+        }
+
+        // Initialize / Reset
+        function reset() {
+            cancelAnimationFrame(animationId);
+            isAnimating = false;
+            startBtn.textContent = "Start Search";
+            
+            // Randomly generate initial position within bounds
+            currentX = (Math.random() * 20) - 10; // Between -10 and 10
+            currentY = f(currentX);
+            
+            bestX = currentX;
+            bestY = currentY;
+            
+            temperature = parseFloat(tempSlider.value);
+            coolingRate = parseFloat(rateSlider.value);
+
+            drawCurve();
+            drawParticles();
+            updateStats();
+        }
+
+        // Core iteration logic for Simulated Annealing
+        function step() {
+            if (temperature < 0.01) {
+                isAnimating = false;
+                startBtn.textContent = "Search Complete";
+                return; // Stop searching when temperature is very low
+            }
+
+            // Generate a new solution by random walk near the current position
+            let stepSize = (temperature / parseFloat(tempSlider.value)) * 3 + 0.1; 
+            let newX = currentX + (Math.random() * 2 - 1) * stepSize;
+            
+            // Constrain within boundaries
+            newX = Math.max(xMin, Math.min(xMax, newX)); 
+            let newY = f(newX);
+
+            let deltaE = newY - currentY;
+
+            // Metropolis criterion
+            if (deltaE < 0) {
+                // New solution is better, accept it
+                currentX = newX;
+                currentY = newY;
+            } else {
+                // New solution is worse, accept with a certain probability
+                let p = Math.exp(-deltaE / temperature);
+                if (Math.random() < p) {
+                    currentX = newX;
+                    currentY = newY;
+                }
+            }
+
+            // Update global best
+            if (currentY < bestY) {
+                bestX = currentX;
+                bestY = currentY;
+            }
+
+            // Cool down
+            temperature *= coolingRate;
+
+            // Redraw
+            drawCurve();
+            drawParticles();
+            updateStats();
+
+            if (isAnimating) {
+                animationId = requestAnimationFrame(step);
+            }
+        }
+
+        // Button event listeners
+        startBtn.addEventListener('click', () => {
+            if (isAnimating) {
+                isAnimating = false;
+                cancelAnimationFrame(animationId);
+                startBtn.textContent = "Resume Search";
+            } else {
+                isAnimating = true;
+                startBtn.textContent = "Pause Search";
+                coolingRate = parseFloat(rateSlider.value); // Allow changing cooling rate mid-search
+                step();
+            }
+        });
+
+        resetBtn.addEventListener('click', reset);
+
+        // Initialize after page load
+        reset();
+
+    </script>
+</body>
+</html>
