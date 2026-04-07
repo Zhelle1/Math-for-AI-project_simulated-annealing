@@ -1,11 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Simulated Annealing Visualization</title>
     <style>
-        /* 基础设置：让所有元素的宽度计算包含内边距 */
         * {
             box-sizing: border-box;
         }
@@ -20,6 +19,34 @@
             padding: 20px;
             margin: 0;
         }
+
+        /* 语言切换按钮样式 */
+        .lang-switch {
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 10px;
+        }
+
+        #langToggleBtn {
+            background: #ffffff;
+            color: #2c3e50;
+            border: 2px solid #bdc3c7;
+            padding: 6px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        #langToggleBtn:hover {
+            background: #ecf0f1;
+            border-color: #95a5a6;
+        }
+
         h1 { margin-bottom: 10px; color: #2c3e50; text-align: center; }
         p { margin-top: 0; color: #7f8c8d; text-align: center; }
         
@@ -38,7 +65,6 @@
             background: #fff;
             border: 1px solid #eee;
             border-radius: 8px;
-            /* 关键修复：让画布在手机端自适应宽度，高度等比缩放 */
             max-width: 100%;
             height: auto;
         }
@@ -60,11 +86,17 @@
             flex-direction: column;
             align-items: center;
             width: 100%;
-            max-width: 250px; /* 控制滑块在手机上的宽度 */
+            max-width: 250px; 
         }
 
-        input[type="range"] {
+        input[type="range"] { width: 100%; }
+
+        .btn-group {
+            display: flex;
+            gap: 15px;
             width: 100%;
+            justify-content: center;
+            flex-wrap: wrap;
         }
 
         button {
@@ -75,8 +107,9 @@
             font-size: 16px;
             font-weight: bold;
             transition: background 0.3s;
-            flex: 1; /* 让按钮在手机上更均匀 */
+            flex: 1;
             min-width: 120px;
+            max-width: 200px;
         }
 
         #startBtn { background: #3498db; color: white; }
@@ -87,7 +120,7 @@
         .stats {
             display: flex;
             justify-content: center;
-            flex-wrap: wrap; /* 关键修复：允许数据块在手机端换行 */
+            flex-wrap: wrap; 
             gap: 10px;
             margin-top: 20px;
             font-size: 16px;
@@ -101,88 +134,144 @@
             padding: 10px 15px;
             border-radius: 6px;
             flex: 1;
-            min-width: 140px; /* 保证数据框在手机上不会太小 */
+            min-width: 140px; 
         }
     </style>
 </head>
 <body>
 
-    <h1>Simulated Annealing Algorithm</h1>
-    <p>Adjust the parameters and observe how the particle escapes local optima to find the global minimum.</p>
+    <div class="lang-switch">
+        <button id="langToggleBtn">🌐 English Version</button>
+    </div>
+
+    <h1 id="pageTitle">模拟退火算法</h1>
+    <p id="pageDesc">调整参数，观察粒子如何跳出局部最优，寻找全局最低点。</p>
 
     <div class="container">
         <canvas id="saCanvas" width="760" height="400"></canvas>
 
         <div class="stats">
-            <div class="stat-box">Current Temp: <br><span id="tempDisplay">100.00</span></div>
-            <div class="stat-box">Current Energy: <br><span id="currentCostDisplay">0.00</span></div>
-            <div class="stat-box" style="color: #d35400;">Best Energy Found: <br><span id="bestCostDisplay">0.00</span></div>
+            <div class="stat-box"><span id="lblTemp">当前温度:</span> <br><span id="tempDisplay">100.00</span></div>
+            <div class="stat-box"><span id="lblCost">当前能量:</span> <br><span id="currentCostDisplay">0.00</span></div>
+            <div class="stat-box" style="color: #d35400;"><span id="lblBest">历史最低能量:</span> <br><span id="bestCostDisplay">0.00</span></div>
         </div>
 
         <div class="controls">
             <div class="control-group">
-                <label for="initialTemp">Initial Temp: <span id="tempVal">100</span></label>
+                <label for="initialTemp"><span id="lblInitTemp">初始温度:</span> <span id="tempVal">100</span></label>
                 <input type="range" id="initialTemp" min="10" max="200" step="10" value="100">
             </div>
             
             <div class="control-group">
-                <label for="coolingRate">Cooling Rate: <span id="rateVal">0.990</span></label>
+                <label for="coolingRate"><span id="lblRate">冷却速率:</span> <span id="rateVal">0.990</span></label>
                 <input type="range" id="coolingRate" min="0.800" max="0.999" step="0.001" value="0.990">
             </div>
 
-            <button id="startBtn">Start Search</button>
-            <button id="resetBtn">Reset</button>
+            <div class="btn-group">
+                <button id="startBtn">开始搜索</button>
+                <button id="resetBtn">重置</button>
+            </div>
         </div>
     </div>
 
     <script>
+        // ---------------- 语言包配置 ----------------
+        const dict = {
+            zh: {
+                title: "模拟退火算法",
+                desc: "调整参数，观察粒子如何跳出局部最优，寻找全局最低点。",
+                lblTemp: "当前温度:",
+                lblCost: "当前能量(高度):",
+                lblBest: "历史最低能量:",
+                lblInitTemp: "初始温度:",
+                lblRate: "冷却速率:",
+                btnStart: "开始搜索",
+                btnPause: "暂停搜索",
+                btnResume: "继续搜索",
+                btnComplete: "搜索完成",
+                btnReset: "重置",
+                toggleText: "🌐 English Version"
+            },
+            en: {
+                title: "Simulated Annealing Algorithm",
+                desc: "Adjust the parameters and observe how the particle escapes local optima to find the global minimum.",
+                lblTemp: "Current Temp:",
+                lblCost: "Current Energy:",
+                lblBest: "Best Energy Found:",
+                lblInitTemp: "Initial Temp:",
+                lblRate: "Cooling Rate:",
+                btnStart: "Start Search",
+                btnPause: "Pause Search",
+                btnResume: "Resume Search",
+                btnComplete: "Search Complete",
+                btnReset: "Reset",
+                toggleText: "🌐 切换至中文"
+            }
+        };
+
+        let currentLang = 'zh'; // 默认语言为中文
+
+        // 更新界面语言的函数
+        function applyLanguage() {
+            const t = dict[currentLang];
+            document.getElementById('pageTitle').textContent = t.title;
+            document.getElementById('pageDesc').textContent = t.desc;
+            document.getElementById('lblTemp').textContent = t.lblTemp;
+            document.getElementById('lblCost').textContent = t.lblCost;
+            document.getElementById('lblBest').textContent = t.lblBest;
+            document.getElementById('lblInitTemp').textContent = t.lblInitTemp;
+            document.getElementById('lblRate').textContent = t.lblRate;
+            document.getElementById('resetBtn').textContent = t.btnReset;
+            document.getElementById('langToggleBtn').textContent = t.toggleText;
+
+            // 根据当前动画状态更新“开始”按钮的文字
+            if (temperature < 0.01) {
+                document.getElementById('startBtn').textContent = t.btnComplete;
+            } else if (isAnimating) {
+                document.getElementById('startBtn').textContent = t.btnPause;
+            } else if (temperature < parseFloat(tempSlider.value)) {
+                document.getElementById('startBtn').textContent = t.btnResume;
+            } else {
+                document.getElementById('startBtn').textContent = t.btnStart;
+            }
+        }
+
+        // 绑定语言切换按钮事件
+        document.getElementById('langToggleBtn').addEventListener('click', () => {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            applyLanguage();
+        });
+
+        // ---------------- 核心算法与绘图逻辑 (保持不变) ----------------
         const canvas = document.getElementById('saCanvas');
         const ctx = canvas.getContext('2d');
         
-        // UI Elements
         const tempSlider = document.getElementById('initialTemp');
         const rateSlider = document.getElementById('coolingRate');
         const tempValLabel = document.getElementById('tempVal');
         const rateValLabel = document.getElementById('rateVal');
         const startBtn = document.getElementById('startBtn');
-        const resetBtn = document.getElementById('resetBtn');
         const tempDisplay = document.getElementById('tempDisplay');
         const currentCostDisplay = document.getElementById('currentCostDisplay');
         const bestCostDisplay = document.getElementById('bestCostDisplay');
 
-        // Objective function
-        function f(x) {
-            return (x * x) / 20 + 4 * Math.sin(2 * x);
-        }
+        function f(x) { return (x * x) / 20 + 4 * Math.sin(2 * x); }
 
-        // Coordinate mapping parameters
         const xMin = -15, xMax = 15;
         const yMin = -10, yMax = 20;
 
-        function mapX(x) {
-            return (x - xMin) / (xMax - xMin) * canvas.width;
-        }
+        function mapX(x) { return (x - xMin) / (xMax - xMin) * canvas.width; }
+        function mapY(y) { return canvas.height - ((y - yMin) / (yMax - yMin) * canvas.height); }
 
-        function mapY(y) {
-            return canvas.height - ((y - yMin) / (yMax - yMin) * canvas.height);
-        }
-
-        // Algorithm state variables
-        let currentX, currentY;
-        let bestX, bestY;
-        let temperature;
-        let coolingRate;
+        let currentX, currentY, bestX, bestY, temperature, coolingRate;
         let isAnimating = false;
         let animationId;
 
-        // Update slider values
         tempSlider.oninput = () => tempValLabel.textContent = tempSlider.value;
         rateSlider.oninput = () => rateValLabel.textContent = rateSlider.value;
 
-        // Draw background curve
         function drawCurve() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
             ctx.strokeStyle = "#eee";
             ctx.beginPath();
             ctx.moveTo(0, mapY(0)); ctx.lineTo(canvas.width, mapY(0));
@@ -202,7 +291,6 @@
             ctx.stroke();
         }
 
-        // Draw particles
         function drawParticles() {
             ctx.beginPath();
             ctx.arc(mapX(bestX), mapY(bestY), 8, 0, Math.PI * 2);
@@ -218,47 +306,40 @@
             ctx.fill();
         }
 
-        // Update UI statistics
         function updateStats() {
             tempDisplay.textContent = temperature.toFixed(2);
             currentCostDisplay.textContent = currentY.toFixed(2);
             bestCostDisplay.textContent = bestY.toFixed(2);
         }
 
-        // Initialize / Reset
         function reset() {
             cancelAnimationFrame(animationId);
             isAnimating = false;
-            startBtn.textContent = "Start Search";
             
             currentX = (Math.random() * 20) - 10;
             currentY = f(currentX);
-            
             bestX = currentX;
             bestY = currentY;
-            
             temperature = parseFloat(tempSlider.value);
             coolingRate = parseFloat(rateSlider.value);
 
+            applyLanguage(); // 重置时刷新语言
             drawCurve();
             drawParticles();
             updateStats();
         }
 
-        // Core iteration logic for Simulated Annealing
         function step() {
             if (temperature < 0.01) {
                 isAnimating = false;
-                startBtn.textContent = "Search Complete";
+                startBtn.textContent = dict[currentLang].btnComplete;
                 return;
             }
 
             let stepSize = (temperature / parseFloat(tempSlider.value)) * 3 + 0.1; 
             let newX = currentX + (Math.random() * 2 - 1) * stepSize;
-            
             newX = Math.max(xMin, Math.min(xMax, newX)); 
             let newY = f(newX);
-
             let deltaE = newY - currentY;
 
             if (deltaE < 0) {
@@ -278,7 +359,6 @@
             }
 
             temperature *= coolingRate;
-
             drawCurve();
             drawParticles();
             updateStats();
@@ -288,22 +368,22 @@
             }
         }
 
-        // Button event listeners
         startBtn.addEventListener('click', () => {
             if (isAnimating) {
                 isAnimating = false;
                 cancelAnimationFrame(animationId);
-                startBtn.textContent = "Resume Search";
+                startBtn.textContent = dict[currentLang].btnResume;
             } else {
                 isAnimating = true;
-                startBtn.textContent = "Pause Search";
+                startBtn.textContent = dict[currentLang].btnPause;
                 coolingRate = parseFloat(rateSlider.value);
                 step();
             }
         });
 
-        resetBtn.addEventListener('click', reset);
+        document.getElementById('resetBtn').addEventListener('click', reset);
 
+        // 页面加载完毕后初始化
         reset();
 
     </script>
