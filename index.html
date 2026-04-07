@@ -86,7 +86,7 @@
             flex-direction: column;
             align-items: center;
             width: 100%;
-            max-width: 250px; 
+            max-width: 230px; 
         }
 
         input[type="range"] { width: 100%; }
@@ -97,6 +97,7 @@
             width: 100%;
             justify-content: center;
             flex-wrap: wrap;
+            margin-top: 10px;
         }
 
         button {
@@ -158,6 +159,11 @@
 
         <div class="controls">
             <div class="control-group">
+                <label for="initialX"><span id="lblInitX">初始位置 (X):</span> <span id="xVal">0.0</span></label>
+                <input type="range" id="initialX" min="-15" max="15" step="0.5" value="0">
+            </div>
+
+            <div class="control-group">
                 <label for="initialTemp"><span id="lblInitTemp">初始温度:</span> <span id="tempVal">100</span></label>
                 <input type="range" id="initialTemp" min="10" max="200" step="10" value="100">
             </div>
@@ -183,6 +189,7 @@
                 lblTemp: "当前温度:",
                 lblCost: "当前能量(高度):",
                 lblBest: "历史最低能量:",
+                lblInitX: "初始位置 (X):",
                 lblInitTemp: "初始温度:",
                 lblRate: "冷却速率:",
                 btnStart: "开始搜索",
@@ -194,10 +201,11 @@
             },
             en: {
                 title: "Simulated Annealing Algorithm",
-                desc: "Adjust the parameters and observe how the particle escapes local optima to find the global minimum.",
+                desc: "Adjust parameters and observe how the particle escapes local optima.",
                 lblTemp: "Current Temp:",
                 lblCost: "Current Energy:",
-                lblBest: "Best Energy Found:",
+                lblBest: "Best Energy:",
+                lblInitX: "Initial Pos (X):",
                 lblInitTemp: "Initial Temp:",
                 lblRate: "Cooling Rate:",
                 btnStart: "Start Search",
@@ -209,9 +217,8 @@
             }
         };
 
-        let currentLang = 'zh'; // 默认语言为中文
+        let currentLang = 'zh';
 
-        // 更新界面语言的函数
         function applyLanguage() {
             const t = dict[currentLang];
             document.getElementById('pageTitle').textContent = t.title;
@@ -219,12 +226,12 @@
             document.getElementById('lblTemp').textContent = t.lblTemp;
             document.getElementById('lblCost').textContent = t.lblCost;
             document.getElementById('lblBest').textContent = t.lblBest;
+            document.getElementById('lblInitX').textContent = t.lblInitX;
             document.getElementById('lblInitTemp').textContent = t.lblInitTemp;
             document.getElementById('lblRate').textContent = t.lblRate;
             document.getElementById('resetBtn').textContent = t.btnReset;
             document.getElementById('langToggleBtn').textContent = t.toggleText;
 
-            // 根据当前动画状态更新“开始”按钮的文字
             if (temperature < 0.01) {
                 document.getElementById('startBtn').textContent = t.btnComplete;
             } else if (isAnimating) {
@@ -236,20 +243,23 @@
             }
         }
 
-        // 绑定语言切换按钮事件
         document.getElementById('langToggleBtn').addEventListener('click', () => {
             currentLang = currentLang === 'zh' ? 'en' : 'zh';
             applyLanguage();
         });
 
-        // ---------------- 核心算法与绘图逻辑 (保持不变) ----------------
+        // ---------------- 核心算法与绘图逻辑 ----------------
         const canvas = document.getElementById('saCanvas');
         const ctx = canvas.getContext('2d');
         
+        const xSlider = document.getElementById('initialX');
         const tempSlider = document.getElementById('initialTemp');
         const rateSlider = document.getElementById('coolingRate');
+        
+        const xValLabel = document.getElementById('xVal');
         const tempValLabel = document.getElementById('tempVal');
         const rateValLabel = document.getElementById('rateVal');
+        
         const startBtn = document.getElementById('startBtn');
         const tempDisplay = document.getElementById('tempDisplay');
         const currentCostDisplay = document.getElementById('currentCostDisplay');
@@ -267,6 +277,20 @@
         let isAnimating = false;
         let animationId;
 
+        // 实时更新数值标签
+        xSlider.oninput = () => {
+            xValLabel.textContent = parseFloat(xSlider.value).toFixed(1);
+            // 如果动画暂停中，允许拖动滑块实时预览粒子的位置
+            if (!isAnimating && temperature === parseFloat(tempSlider.value)) {
+                currentX = parseFloat(xSlider.value);
+                currentY = f(currentX);
+                bestX = currentX;
+                bestY = currentY;
+                drawCurve();
+                drawParticles();
+                updateStats();
+            }
+        };
         tempSlider.oninput = () => tempValLabel.textContent = tempSlider.value;
         rateSlider.oninput = () => rateValLabel.textContent = rateSlider.value;
 
@@ -316,14 +340,15 @@
             cancelAnimationFrame(animationId);
             isAnimating = false;
             
-            currentX = (Math.random() * 20) - 10;
+            // 使用滑块的值作为初始位置，不再使用随机数
+            currentX = parseFloat(xSlider.value);
             currentY = f(currentX);
             bestX = currentX;
             bestY = currentY;
             temperature = parseFloat(tempSlider.value);
             coolingRate = parseFloat(rateSlider.value);
 
-            applyLanguage(); // 重置时刷新语言
+            applyLanguage(); 
             drawCurve();
             drawParticles();
             updateStats();
@@ -385,7 +410,6 @@
 
         // 页面加载完毕后初始化
         reset();
-
     </script>
 </body>
 </html>
