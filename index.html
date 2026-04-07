@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Simulated Annealing Visualization</title>
     <style>
+        /* 基础设置：让所有元素的宽度计算包含内边距 */
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #f4f7f6;
@@ -15,8 +20,8 @@
             padding: 20px;
             margin: 0;
         }
-        h1 { margin-bottom: 10px; color: #2c3e50; }
-        p { margin-top: 0; color: #7f8c8d; }
+        h1 { margin-bottom: 10px; color: #2c3e50; text-align: center; }
+        p { margin-top: 0; color: #7f8c8d; text-align: center; }
         
         .container {
             background: white;
@@ -33,6 +38,9 @@
             background: #fff;
             border: 1px solid #eee;
             border-radius: 8px;
+            /* 关键修复：让画布在手机端自适应宽度，高度等比缩放 */
+            max-width: 100%;
+            height: auto;
         }
 
         .controls {
@@ -51,6 +59,12 @@
             display: flex;
             flex-direction: column;
             align-items: center;
+            width: 100%;
+            max-width: 250px; /* 控制滑块在手机上的宽度 */
+        }
+
+        input[type="range"] {
+            width: 100%;
         }
 
         button {
@@ -61,6 +75,8 @@
             font-size: 16px;
             font-weight: bold;
             transition: background 0.3s;
+            flex: 1; /* 让按钮在手机上更均匀 */
+            min-width: 120px;
         }
 
         #startBtn { background: #3498db; color: white; }
@@ -70,17 +86,22 @@
 
         .stats {
             display: flex;
-            justify-content: space-around;
+            justify-content: center;
+            flex-wrap: wrap; /* 关键修复：允许数据块在手机端换行 */
+            gap: 10px;
             margin-top: 20px;
             font-size: 16px;
             font-weight: bold;
             color: #2c3e50;
+            text-align: center;
         }
 
         .stat-box {
             background: #eaf2f8;
             padding: 10px 15px;
             border-radius: 6px;
+            flex: 1;
+            min-width: 140px; /* 保证数据框在手机上不会太小 */
         }
     </style>
 </head>
@@ -93,9 +114,9 @@
         <canvas id="saCanvas" width="760" height="400"></canvas>
 
         <div class="stats">
-            <div class="stat-box">Current Temp: <span id="tempDisplay">100.00</span></div>
-            <div class="stat-box">Current Energy: <span id="currentCostDisplay">0.00</span></div>
-            <div class="stat-box" style="color: #d35400;">Best Energy Found: <span id="bestCostDisplay">0.00</span></div>
+            <div class="stat-box">Current Temp: <br><span id="tempDisplay">100.00</span></div>
+            <div class="stat-box">Current Energy: <br><span id="currentCostDisplay">0.00</span></div>
+            <div class="stat-box" style="color: #d35400;">Best Energy Found: <br><span id="bestCostDisplay">0.00</span></div>
         </div>
 
         <div class="controls">
@@ -129,7 +150,7 @@
         const currentCostDisplay = document.getElementById('currentCostDisplay');
         const bestCostDisplay = document.getElementById('bestCostDisplay');
 
-        // Objective function: A function with multiple local minima f(x) = x^2/20 + 4*sin(2x)
+        // Objective function
         function f(x) {
             return (x * x) / 20 + 4 * Math.sin(2 * x);
         }
@@ -143,7 +164,6 @@
         }
 
         function mapY(y) {
-            // Invert Y axis so lower values are at the bottom
             return canvas.height - ((y - yMin) / (yMax - yMin) * canvas.height);
         }
 
@@ -163,14 +183,12 @@
         function drawCurve() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Draw grid
             ctx.strokeStyle = "#eee";
             ctx.beginPath();
-            ctx.moveTo(0, mapY(0)); ctx.lineTo(canvas.width, mapY(0)); // X axis
-            ctx.moveTo(mapX(0), 0); ctx.lineTo(mapX(0), canvas.height); // Y axis
+            ctx.moveTo(0, mapY(0)); ctx.lineTo(canvas.width, mapY(0));
+            ctx.moveTo(mapX(0), 0); ctx.lineTo(mapX(0), canvas.height);
             ctx.stroke();
 
-            // Draw objective function curve
             ctx.beginPath();
             ctx.strokeStyle = "#2c3e50";
             ctx.lineWidth = 2;
@@ -186,16 +204,14 @@
 
         // Draw particles
         function drawParticles() {
-            // Draw best solution found so far (Orange circle)
             ctx.beginPath();
             ctx.arc(mapX(bestX), mapY(bestY), 8, 0, Math.PI * 2);
-            ctx.fillStyle = "rgba(211, 84, 0, 0.5)"; // Semi-transparent orange
+            ctx.fillStyle = "rgba(211, 84, 0, 0.5)";
             ctx.fill();
             ctx.strokeStyle = "#d35400";
             ctx.lineWidth = 2;
             ctx.stroke();
 
-            // Draw current exploration point (Red solid circle)
             ctx.beginPath();
             ctx.arc(mapX(currentX), mapY(currentY), 6, 0, Math.PI * 2);
             ctx.fillStyle = "#e74c3c";
@@ -215,8 +231,7 @@
             isAnimating = false;
             startBtn.textContent = "Start Search";
             
-            // Randomly generate initial position within bounds
-            currentX = (Math.random() * 20) - 10; // Between -10 and 10
+            currentX = (Math.random() * 20) - 10;
             currentY = f(currentX);
             
             bestX = currentX;
@@ -235,26 +250,21 @@
             if (temperature < 0.01) {
                 isAnimating = false;
                 startBtn.textContent = "Search Complete";
-                return; // Stop searching when temperature is very low
+                return;
             }
 
-            // Generate a new solution by random walk near the current position
             let stepSize = (temperature / parseFloat(tempSlider.value)) * 3 + 0.1; 
             let newX = currentX + (Math.random() * 2 - 1) * stepSize;
             
-            // Constrain within boundaries
             newX = Math.max(xMin, Math.min(xMax, newX)); 
             let newY = f(newX);
 
             let deltaE = newY - currentY;
 
-            // Metropolis criterion
             if (deltaE < 0) {
-                // New solution is better, accept it
                 currentX = newX;
                 currentY = newY;
             } else {
-                // New solution is worse, accept with a certain probability
                 let p = Math.exp(-deltaE / temperature);
                 if (Math.random() < p) {
                     currentX = newX;
@@ -262,16 +272,13 @@
                 }
             }
 
-            // Update global best
             if (currentY < bestY) {
                 bestX = currentX;
                 bestY = currentY;
             }
 
-            // Cool down
             temperature *= coolingRate;
 
-            // Redraw
             drawCurve();
             drawParticles();
             updateStats();
@@ -290,14 +297,13 @@
             } else {
                 isAnimating = true;
                 startBtn.textContent = "Pause Search";
-                coolingRate = parseFloat(rateSlider.value); // Allow changing cooling rate mid-search
+                coolingRate = parseFloat(rateSlider.value);
                 step();
             }
         });
 
         resetBtn.addEventListener('click', reset);
 
-        // Initialize after page load
         reset();
 
     </script>
