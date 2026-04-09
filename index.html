@@ -361,7 +361,10 @@
                 return;
             }
 
-            let stepSize = (temperature / parseFloat(tempSlider.value)) * 3 + 0.1; 
+            //let stepSize = (temperature / parseFloat(tempSlider.value)) * 3 + 0.1; 
+            // 让步伐大小直接与绝对温度挂钩！
+            // 温度200时，步伐极大，满屏乱飞；温度10时，步伐极小，只能在坑底摩擦
+            let stepSize = (temperature / 25) + 0.1;
             let newX = currentX + (Math.random() * 2 - 1) * stepSize;
             newX = Math.max(xMin, Math.min(xMax, newX)); 
             let newY = f(newX);
