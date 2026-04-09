@@ -18,9 +18,9 @@
             align-items: center;
             padding: 20px;
             margin: 0;
+            touch-action: manipulation; /* 防止手机端误触缩放或滚动 */
         }
 
-        /* 语言切换按钮样式 */
         .lang-switch {
             width: 100%;
             max-width: 800px;
@@ -89,7 +89,10 @@
             max-width: 230px; 
         }
 
-        input[type="range"] { width: 100%; }
+        input[type="range"] { 
+            width: 100%; 
+            cursor: pointer;
+        }
 
         .btn-group {
             display: flex;
@@ -181,7 +184,6 @@
     </div>
 
     <script>
-        // ---------------- 语言包配置 ----------------
         const dict = {
             zh: {
                 title: "模拟退火算法",
@@ -232,6 +234,7 @@
             document.getElementById('resetBtn').textContent = t.btnReset;
             document.getElementById('langToggleBtn').textContent = t.toggleText;
 
+            // 动态更新按钮文字
             if (temperature < 0.01) {
                 document.getElementById('startBtn').textContent = t.btnComplete;
             } else if (isAnimating) {
@@ -248,7 +251,6 @@
             applyLanguage();
         });
 
-        // ---------------- 核心算法与绘图逻辑 ----------------
         const canvas = document.getElementById('saCanvas');
         const ctx = canvas.getContext('2d');
         
@@ -277,22 +279,46 @@
         let isAnimating = false;
         let animationId;
 
-        // 实时更新数值标签
+        // ------------------ 修复的交互逻辑核心 ------------------
+
         xSlider.oninput = () => {
             xValLabel.textContent = parseFloat(xSlider.value).toFixed(1);
-            // 如果动画暂停中，允许拖动滑块实时预览粒子的位置
-            if (!isAnimating && temperature === parseFloat(tempSlider.value)) {
-                currentX = parseFloat(xSlider.value);
-                currentY = f(currentX);
-                bestX = currentX;
-                bestY = currentY;
-                drawCurve();
-                drawParticles();
-                updateStats();
+            cancelAnimationFrame(animationId);
+            isAnimating = false;
+            
+            currentX = parseFloat(xSlider.value);
+            currentY = f(currentX);
+            bestX = currentX;
+            bestY = currentY;
+            
+            temperature = parseFloat(tempSlider.value);
+            coolingRate = parseFloat(rateSlider.value);
+
+            applyLanguage(); 
+            drawCurve();
+            drawParticles();
+            updateStats();
+        };
+
+        // 修复：拖动温度滑块时，如果没在动画中，立刻更新底层温度
+        tempSlider.oninput = () => {
+            tempValLabel.textContent = tempSlider.value;
+            if (!isAnimating) {
+                temperature = parseFloat(tempSlider.value);
+                applyLanguage(); // 这会自动将"搜索完成"变回"开始搜索"
+                updateStats();   // 实时更新"当前温度"的文字显示
             }
         };
-        tempSlider.oninput = () => tempValLabel.textContent = tempSlider.value;
-        rateSlider.oninput = () => rateValLabel.textContent = rateSlider.value;
+
+        // 修复：拖动冷却率滑块时，如果没在动画中，立刻更新底层速率
+        rateSlider.oninput = () => {
+            rateValLabel.textContent = rateSlider.value;
+            if (!isAnimating) {
+                coolingRate = parseFloat(rateSlider.value);
+            }
+        };
+
+        // --------------------------------------------------------
 
         function drawCurve() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -340,7 +366,6 @@
             cancelAnimationFrame(animationId);
             isAnimating = false;
             
-            // 使用滑块的值作为初始位置，不再使用随机数
             currentX = parseFloat(xSlider.value);
             currentY = f(currentX);
             bestX = currentX;
@@ -361,10 +386,9 @@
                 return;
             }
 
-            //let stepSize = (temperature / parseFloat(tempSlider.value)) * 3 + 0.1; 
-            // 让步伐大小直接与绝对温度挂钩！
-            // 温度200时，步伐极大，满屏乱飞；温度10时，步伐极小，只能在坑底摩擦
-            let stepSize = (temperature / 25) + 0.1;
+            // 【保留你修改的特性】步伐大小直接与温度挂钩，体现高温的狂暴！
+            let stepSize = (temperature / 25) + 0.1; 
+            
             let newX = currentX + (Math.random() * 2 - 1) * stepSize;
             newX = Math.max(xMin, Math.min(xMax, newX)); 
             let newY = f(newX);
@@ -411,7 +435,6 @@
 
         document.getElementById('resetBtn').addEventListener('click', reset);
 
-        // 页面加载完毕后初始化
         reset();
     </script>
 </body>
