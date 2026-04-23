@@ -4,10 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Simulated Annealing Visualization</title>
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
     <style>
-        * {
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -18,18 +17,18 @@
             align-items: center;
             padding: 20px;
             margin: 0;
-            touch-action: manipulation; /* 防止手机端误触缩放或滚动 */
+            touch-action: manipulation;
         }
 
-        .lang-switch {
+        .top-bar {
             width: 100%;
             max-width: 800px;
             display: flex;
-            justify-content: flex-end;
+            justify-content: space-between;
             margin-bottom: 10px;
         }
 
-        #langToggleBtn {
+        .toggle-btn {
             background: #ffffff;
             color: #2c3e50;
             border: 2px solid #bdc3c7;
@@ -42,10 +41,7 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         }
 
-        #langToggleBtn:hover {
-            background: #ecf0f1;
-            border-color: #95a5a6;
-        }
+        .toggle-btn:hover { background: #ecf0f1; border-color: #95a5a6; }
 
         h1 { margin-bottom: 10px; color: #2c3e50; text-align: center; }
         p { margin-top: 0; color: #7f8c8d; text-align: center; }
@@ -59,25 +55,37 @@
             width: 100%;
         }
 
-        canvas {
-            display: block;
-            margin: 0 auto;
-            background: #fff;
+        .visual-area {
+            width: 100%;
+            height: 400px;
+            position: relative;
             border: 1px solid #eee;
             border-radius: 8px;
-            max-width: 100%;
-            height: auto;
+            overflow: hidden;
+            background: #fff;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #plot3D {
+            width: 100%;
+            height: 100%;
+            display: none; 
         }
 
         .controls {
             display: flex;
             flex-wrap: wrap;
-            gap: 20px;
+            gap: 15px;
             margin-top: 20px;
             padding: 15px;
             background: #f8f9fa;
             border-radius: 8px;
-            align-items: center;
+            align-items: flex-start;
             justify-content: center;
         }
 
@@ -86,13 +94,10 @@
             flex-direction: column;
             align-items: center;
             width: 100%;
-            max-width: 230px; 
+            max-width: 220px; 
         }
 
-        input[type="range"] { 
-            width: 100%; 
-            cursor: pointer;
-        }
+        input[type="range"] { width: 100%; cursor: pointer; }
 
         .btn-group {
             display: flex;
@@ -103,7 +108,7 @@
             margin-top: 10px;
         }
 
-        button {
+        button.action-btn {
             padding: 10px 20px;
             border: none;
             border-radius: 6px;
@@ -144,15 +149,19 @@
 </head>
 <body>
 
-    <div class="lang-switch">
-        <button id="langToggleBtn">🌐 English Version</button>
+    <div class="top-bar">
+        <button id="modeToggleBtn" class="toggle-btn">🔲 切换至 3D 向量模式</button>
+        <button id="langToggleBtn" class="toggle-btn">🌐 English</button>
     </div>
 
     <h1 id="pageTitle">模拟退火算法</h1>
     <p id="pageDesc">调整参数，观察粒子如何跳出局部最优，寻找全局最低点。</p>
 
     <div class="container">
-        <canvas id="saCanvas" width="760" height="400"></canvas>
+        <div class="visual-area">
+            <canvas id="saCanvas" width="760" height="400"></canvas>
+            <div id="plot3D"></div>
+        </div>
 
         <div class="stats">
             <div class="stat-box"><span id="lblTemp">当前温度:</span> <br><span id="tempDisplay">100.00</span></div>
@@ -163,7 +172,12 @@
         <div class="controls">
             <div class="control-group">
                 <label for="initialX"><span id="lblInitX">初始位置 (X):</span> <span id="xVal">0.0</span></label>
-                <input type="range" id="initialX" min="-15" max="15" step="0.5" value="0">
+                <input type="range" id="initialX" min="-10" max="10" step="0.5" value="0">
+            </div>
+            
+            <div class="control-group" id="yControlGroup" style="display: none;">
+                <label for="initialY"><span id="lblInitY">初始位置 (Y):</span> <span id="yVal">0.0</span></label>
+                <input type="range" id="initialY" min="-10" max="10" step="0.5" value="0">
             </div>
 
             <div class="control-group">
@@ -177,13 +191,14 @@
             </div>
 
             <div class="btn-group">
-                <button id="startBtn">开始搜索</button>
-                <button id="resetBtn">重置</button>
+                <button id="startBtn" class="action-btn">开始搜索</button>
+                <button id="resetBtn" class="action-btn">重置</button>
             </div>
         </div>
     </div>
 
     <script>
+        // ---------------- 语言包配置 ----------------
         const dict = {
             zh: {
                 title: "模拟退火算法",
@@ -192,6 +207,7 @@
                 lblCost: "当前能量(高度):",
                 lblBest: "历史最低能量:",
                 lblInitX: "初始位置 (X):",
+                lblInitY: "初始位置 (Y):",
                 lblInitTemp: "初始温度:",
                 lblRate: "冷却速率:",
                 btnStart: "开始搜索",
@@ -199,7 +215,9 @@
                 btnResume: "继续搜索",
                 btnComplete: "搜索完成",
                 btnReset: "重置",
-                toggleText: "🌐 English Version"
+                langText: "🌐 English",
+                modeText2D: "🔲 切换至 3D 向量模式",
+                modeText3D: "➖ 切换至 2D 标量模式"
             },
             en: {
                 title: "Simulated Annealing Algorithm",
@@ -208,6 +226,7 @@
                 lblCost: "Current Energy:",
                 lblBest: "Best Energy:",
                 lblInitX: "Initial Pos (X):",
+                lblInitY: "Initial Pos (Y):",
                 lblInitTemp: "Initial Temp:",
                 lblRate: "Cooling Rate:",
                 btnStart: "Start Search",
@@ -215,11 +234,14 @@
                 btnResume: "Resume Search",
                 btnComplete: "Search Complete",
                 btnReset: "Reset",
-                toggleText: "🌐 切换至中文"
+                langText: "🌐 中文",
+                modeText2D: "🔲 Switch to 3D Vector Mode",
+                modeText3D: "➖ Switch to 2D Scalar Mode"
             }
         };
 
         let currentLang = 'zh';
+        let is3DMode = false;
 
         function applyLanguage() {
             const t = dict[currentLang];
@@ -229,12 +251,13 @@
             document.getElementById('lblCost').textContent = t.lblCost;
             document.getElementById('lblBest').textContent = t.lblBest;
             document.getElementById('lblInitX').textContent = t.lblInitX;
+            document.getElementById('lblInitY').textContent = t.lblInitY;
             document.getElementById('lblInitTemp').textContent = t.lblInitTemp;
             document.getElementById('lblRate').textContent = t.lblRate;
             document.getElementById('resetBtn').textContent = t.btnReset;
-            document.getElementById('langToggleBtn').textContent = t.toggleText;
+            document.getElementById('langToggleBtn').textContent = t.langText;
+            document.getElementById('modeToggleBtn').textContent = is3DMode ? t.modeText3D : t.modeText2D;
 
-            // 动态更新按钮文字
             if (temperature < 0.01) {
                 document.getElementById('startBtn').textContent = t.btnComplete;
             } else if (isAnimating) {
@@ -251,190 +274,226 @@
             applyLanguage();
         });
 
+        document.getElementById('modeToggleBtn').addEventListener('click', () => {
+            is3DMode = !is3DMode;
+            document.getElementById('saCanvas').style.display = is3DMode ? 'none' : 'block';
+            document.getElementById('plot3D').style.display = is3DMode ? 'block' : 'none';
+            // 控制 Y 轴滑块的显示与隐藏
+            document.getElementById('yControlGroup').style.display = is3DMode ? 'flex' : 'none';
+            reset(); 
+        });
+
+        // ---------------- 核心算法与数据 ----------------
         const canvas = document.getElementById('saCanvas');
         const ctx = canvas.getContext('2d');
-        
         const xSlider = document.getElementById('initialX');
+        const ySlider = document.getElementById('initialY');
         const tempSlider = document.getElementById('initialTemp');
         const rateSlider = document.getElementById('coolingRate');
         
-        const xValLabel = document.getElementById('xVal');
-        const tempValLabel = document.getElementById('tempVal');
-        const rateValLabel = document.getElementById('rateVal');
-        
-        const startBtn = document.getElementById('startBtn');
         const tempDisplay = document.getElementById('tempDisplay');
         const currentCostDisplay = document.getElementById('currentCostDisplay');
         const bestCostDisplay = document.getElementById('bestCostDisplay');
+        const startBtn = document.getElementById('startBtn');
 
-        function f(x) { return (x * x) / 20 + 4 * Math.sin(2 * x); }
+        // 【重塑地形】使用更宽广的坑谷，减少密集的局部最优
+        function f2D(x) { return (x * x) / 10 - 4 * Math.cos(x); }
+        function f3D(x, y) { return (x * x + y * y) / 10 - 4 * Math.cos(x) - 4 * Math.cos(y); }
 
-        const xMin = -15, xMax = 15;
-        const yMin = -10, yMax = 20;
-
-        function mapX(x) { return (x - xMin) / (xMax - xMin) * canvas.width; }
-        function mapY(y) { return canvas.height - ((y - yMin) / (yMax - yMin) * canvas.height); }
-
-        let currentX, currentY, bestX, bestY, temperature, coolingRate;
+        // 将范围稍微收缩，让曲线细节更大、更清晰
+        const bounds = { min: -10, max: 10 };
+        let currentX, currentY, currentCost;
+        let bestX, bestY, bestCost;
+        let temperature, coolingRate;
         let isAnimating = false;
         let animationId;
+        let isPlotlyInitialized = false;
 
-        // ------------------ 修复的交互逻辑核心 ------------------
+        // ---------------- 2D 渲染 ----------------
+        function mapX(x) { return (x - bounds.min) / (bounds.max - bounds.min) * canvas.width; }
+        // 调整 Y 轴映射比例适应新函数
+        function mapY(y) { return canvas.height - ((y + 6) / 24 * canvas.height); }
 
+        function draw2D() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = "#eee"; ctx.beginPath();
+            ctx.moveTo(0, mapY(0)); ctx.lineTo(canvas.width, mapY(0));
+            ctx.moveTo(mapX(0), 0); ctx.lineTo(mapX(0), canvas.height); ctx.stroke();
+
+            ctx.beginPath(); ctx.strokeStyle = "#2c3e50"; ctx.lineWidth = 2;
+            for (let px = 0; px <= canvas.width; px++) {
+                let x = bounds.min + (px / canvas.width) * (bounds.max - bounds.min);
+                let y = f2D(x);
+                if (px === 0) ctx.moveTo(px, mapY(y)); else ctx.lineTo(px, mapY(y));
+            }
+            ctx.stroke();
+
+            ctx.beginPath(); ctx.arc(mapX(bestX), mapY(bestCost), 8, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(211, 84, 0, 0.5)"; ctx.fill();
+            ctx.strokeStyle = "#d35400"; ctx.lineWidth = 2; ctx.stroke();
+
+            ctx.beginPath(); ctx.arc(mapX(currentX), mapY(currentCost), 6, 0, Math.PI * 2);
+            ctx.fillStyle = "#e74c3c"; ctx.fill();
+        }
+
+        // ---------------- 3D 渲染 (Plotly) ----------------
+        function initPlotly() {
+            let xData = [], yData = [], zData = [];
+            for (let i = bounds.min; i <= bounds.max; i += 0.5) {
+                let xRow = [], yRow = [], zRow = [];
+                for (let j = bounds.min; j <= bounds.max; j += 0.5) {
+                    xRow.push(i); yRow.push(j); zRow.push(f3D(i, j));
+                }
+                xData.push(xRow); yData.push(yRow); zData.push(zRow);
+            }
+
+            const surface = { type: 'surface', x: xData, y: yData, z: zData, colorscale: 'Viridis', opacity: 0.85, showscale: false };
+            const bestPt = { type: 'scatter3d', mode: 'markers', x: [bestX], y: [bestY], z: [bestCost], marker: { color: 'orange', size: 8, symbol: 'circle-open', line: {width: 4} }, name: 'Best' };
+            const currPt = { type: 'scatter3d', mode: 'markers', x: [currentX], y: [currentY], z: [currentCost], marker: { color: 'red', size: 6 }, name: 'Current' };
+
+            const layout = {
+                margin: { l: 0, r: 0, b: 0, t: 0 },
+                scene: { camera: { eye: {x: 1.5, y: 1.5, z: 1.2} }, xaxis: {title: 'X'}, yaxis: {title: 'Y'}, zaxis: {title: 'Cost'} },
+                showlegend: false
+            };
+
+            Plotly.newPlot('plot3D', [surface, bestPt, currPt], layout, {displayModeBar: false});
+            isPlotlyInitialized = true;
+        }
+
+        function updatePlotly() {
+            if(!isPlotlyInitialized) return;
+            Plotly.restyle('plot3D', { 'x': [[bestX]], 'y': [[bestY]], 'z': [[bestCost]] }, 1);
+            Plotly.restyle('plot3D', { 'x': [[currentX]], 'y': [[currentY]], 'z': [[currentCost]] }, 2);
+        }
+
+        // ---------------- UI 交互逻辑 ----------------
         xSlider.oninput = () => {
-            xValLabel.textContent = parseFloat(xSlider.value).toFixed(1);
-            cancelAnimationFrame(animationId);
-            isAnimating = false;
+            document.getElementById('xVal').textContent = parseFloat(xSlider.value).toFixed(1);
+            cancelAnimationFrame(animationId); isAnimating = false;
             
             currentX = parseFloat(xSlider.value);
-            currentY = f(currentX);
-            bestX = currentX;
-            bestY = currentY;
+            currentY = is3DMode ? parseFloat(ySlider.value) : 0; 
+            currentCost = is3DMode ? f3D(currentX, currentY) : f2D(currentX);
             
-            temperature = parseFloat(tempSlider.value);
-            coolingRate = parseFloat(rateSlider.value);
+            bestX = currentX; bestY = currentY; bestCost = currentCost;
+            temperature = parseFloat(tempSlider.value); coolingRate = parseFloat(rateSlider.value);
 
-            applyLanguage(); 
-            drawCurve();
-            drawParticles();
-            updateStats();
+            applyLanguage(); updateStats();
+            is3DMode ? updatePlotly() : draw2D();
         };
 
-        // 修复：拖动温度滑块时，如果没在动画中，立刻更新底层温度
+        ySlider.oninput = () => {
+            document.getElementById('yVal').textContent = parseFloat(ySlider.value).toFixed(1);
+            cancelAnimationFrame(animationId); isAnimating = false;
+            
+            currentX = parseFloat(xSlider.value);
+            currentY = parseFloat(ySlider.value); 
+            currentCost = f3D(currentX, currentY);
+            
+            bestX = currentX; bestY = currentY; bestCost = currentCost;
+            temperature = parseFloat(tempSlider.value); coolingRate = parseFloat(rateSlider.value);
+
+            applyLanguage(); updateStats();
+            updatePlotly();
+        };
+
         tempSlider.oninput = () => {
-            tempValLabel.textContent = tempSlider.value;
+            document.getElementById('tempVal').textContent = tempSlider.value;
             if (!isAnimating) {
                 temperature = parseFloat(tempSlider.value);
-                applyLanguage(); // 这会自动将"搜索完成"变回"开始搜索"
-                updateStats();   // 实时更新"当前温度"的文字显示
+                applyLanguage(); tempDisplay.textContent = temperature.toFixed(2);
             }
         };
 
-        // 修复：拖动冷却率滑块时，如果没在动画中，立刻更新底层速率
         rateSlider.oninput = () => {
-            rateValLabel.textContent = rateSlider.value;
-            if (!isAnimating) {
-                coolingRate = parseFloat(rateSlider.value);
-            }
+            document.getElementById('rateVal').textContent = rateSlider.value;
+            if (!isAnimating) coolingRate = parseFloat(rateSlider.value);
         };
-
-        // --------------------------------------------------------
-
-        function drawCurve() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.strokeStyle = "#eee";
-            ctx.beginPath();
-            ctx.moveTo(0, mapY(0)); ctx.lineTo(canvas.width, mapY(0));
-            ctx.moveTo(mapX(0), 0); ctx.lineTo(mapX(0), canvas.height);
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.strokeStyle = "#2c3e50";
-            ctx.lineWidth = 2;
-            for (let px = 0; px <= canvas.width; px++) {
-                let x = xMin + (px / canvas.width) * (xMax - xMin);
-                let y = f(x);
-                let py = mapY(y);
-                if (px === 0) ctx.moveTo(px, py);
-                else ctx.lineTo(px, py);
-            }
-            ctx.stroke();
-        }
-
-        function drawParticles() {
-            ctx.beginPath();
-            ctx.arc(mapX(bestX), mapY(bestY), 8, 0, Math.PI * 2);
-            ctx.fillStyle = "rgba(211, 84, 0, 0.5)";
-            ctx.fill();
-            ctx.strokeStyle = "#d35400";
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.arc(mapX(currentX), mapY(currentY), 6, 0, Math.PI * 2);
-            ctx.fillStyle = "#e74c3c";
-            ctx.fill();
-        }
 
         function updateStats() {
             tempDisplay.textContent = temperature.toFixed(2);
-            currentCostDisplay.textContent = currentY.toFixed(2);
-            bestCostDisplay.textContent = bestY.toFixed(2);
+            currentCostDisplay.textContent = currentCost.toFixed(2);
+            bestCostDisplay.textContent = bestCost.toFixed(2);
         }
 
         function reset() {
-            cancelAnimationFrame(animationId);
-            isAnimating = false;
+            cancelAnimationFrame(animationId); isAnimating = false;
             
             currentX = parseFloat(xSlider.value);
-            currentY = f(currentX);
-            bestX = currentX;
-            bestY = currentY;
-            temperature = parseFloat(tempSlider.value);
-            coolingRate = parseFloat(rateSlider.value);
+            // 现在重置时，3D模式下也会严格采用 Y 滑块设定的位置
+            currentY = is3DMode ? parseFloat(ySlider.value) : 0; 
+            currentCost = is3DMode ? f3D(currentX, currentY) : f2D(currentX);
+            
+            bestX = currentX; bestY = currentY; bestCost = currentCost;
+            temperature = parseFloat(tempSlider.value); coolingRate = parseFloat(rateSlider.value);
 
-            applyLanguage(); 
-            drawCurve();
-            drawParticles();
-            updateStats();
+            applyLanguage(); updateStats();
+            
+            if (is3DMode) {
+                if(!isPlotlyInitialized) initPlotly();
+                else updatePlotly();
+            } else {
+                draw2D();
+            }
         }
 
         function step() {
             if (temperature < 0.01) {
-                isAnimating = false;
-                startBtn.textContent = dict[currentLang].btnComplete;
-                return;
+                isAnimating = false; startBtn.textContent = dict[currentLang].btnComplete; return;
             }
 
-            // 【保留你修改的特性】步伐大小直接与温度挂钩，体现高温的狂暴！
             let stepSize = (temperature / 25) + 0.1; 
             
             let newX = currentX + (Math.random() * 2 - 1) * stepSize;
-            newX = Math.max(xMin, Math.min(xMax, newX)); 
-            let newY = f(newX);
-            let deltaE = newY - currentY;
+            newX = Math.max(bounds.min, Math.min(bounds.max, newX)); 
+            
+            let newY = currentY;
+            let newCost;
 
-            if (deltaE < 0) {
-                currentX = newX;
-                currentY = newY;
+            if (is3DMode) {
+                newY = currentY + (Math.random() * 2 - 1) * stepSize;
+                newY = Math.max(bounds.min, Math.min(bounds.max, newY));
+                newCost = f3D(newX, newY);
             } else {
-                let p = Math.exp(-deltaE / temperature);
-                if (Math.random() < p) {
-                    currentX = newX;
-                    currentY = newY;
-                }
+                newCost = f2D(newX);
             }
 
-            if (currentY < bestY) {
-                bestX = currentX;
-                bestY = currentY;
+            let deltaE = newCost - currentCost;
+
+            if (deltaE < 0 || Math.random() < Math.exp(-deltaE / temperature)) {
+                currentX = newX; currentY = newY; currentCost = newCost;
+            }
+
+            if (currentCost < bestCost) {
+                bestX = currentX; bestY = currentY; bestCost = currentCost;
             }
 
             temperature *= coolingRate;
-            drawCurve();
-            drawParticles();
             updateStats();
+            
+            if (is3DMode) {
+                updatePlotly();
+            } else {
+                draw2D();
+            }
 
             if (isAnimating) {
-                animationId = requestAnimationFrame(step);
+                setTimeout(() => { requestAnimationFrame(step); }, is3DMode ? 20 : 0);
             }
         }
 
         startBtn.addEventListener('click', () => {
             if (isAnimating) {
-                isAnimating = false;
-                cancelAnimationFrame(animationId);
+                isAnimating = false; cancelAnimationFrame(animationId);
                 startBtn.textContent = dict[currentLang].btnResume;
             } else {
-                isAnimating = true;
-                startBtn.textContent = dict[currentLang].btnPause;
-                coolingRate = parseFloat(rateSlider.value);
-                step();
+                isAnimating = true; startBtn.textContent = dict[currentLang].btnPause;
+                coolingRate = parseFloat(rateSlider.value); step();
             }
         });
 
         document.getElementById('resetBtn').addEventListener('click', reset);
-
         reset();
     </script>
 </body>
