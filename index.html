@@ -132,7 +132,7 @@
             flex-wrap: wrap; 
             gap: 10px;
             margin-top: 20px;
-            font-size: 16px;
+            font-size: 15px;
             font-weight: bold;
             color: #2c3e50;
             text-align: center;
@@ -140,10 +140,10 @@
 
         .stat-box {
             background: #eaf2f8;
-            padding: 10px 15px;
+            padding: 10px 10px;
             border-radius: 6px;
             flex: 1;
-            min-width: 140px; 
+            min-width: 130px; 
         }
     </style>
 </head>
@@ -164,20 +164,16 @@
         </div>
 
         <div class="stats">
+            <div class="stat-box"><span id="lblCurIter">当前迭代:</span> <br><span id="iterDisplay" style="color: #2980b9;">0</span></div>
             <div class="stat-box"><span id="lblTemp">当前温度:</span> <br><span id="tempDisplay">100.00</span></div>
             <div class="stat-box"><span id="lblCost">当前能量:</span> <br><span id="currentCostDisplay">0.00</span></div>
-            <div class="stat-box" style="color: #d35400;"><span id="lblBest">历史最低能量:</span> <br><span id="bestCostDisplay">0.00</span></div>
+            <div class="stat-box"><span id="lblBest">历史最低:</span> <br><span id="bestCostDisplay" style="color: #d35400;">0.00</span></div>
         </div>
 
         <div class="controls">
             <div class="control-group">
-                <label for="initialX"><span id="lblInitX">初始位置 (X):</span> <span id="xVal">0.0</span></label>
-                <input type="range" id="initialX" min="-10" max="10" step="0.5" value="0">
-            </div>
-            
-            <div class="control-group" id="yControlGroup" style="display: none;">
-                <label for="initialY"><span id="lblInitY">初始位置 (Y):</span> <span id="yVal">0.0</span></label>
-                <input type="range" id="initialY" min="-10" max="10" step="0.5" value="0">
+                <label for="maxIter"><span id="lblMaxIter">最大迭代次数:</span> <span id="maxIterVal">1000</span></label>
+                <input type="range" id="maxIter" min="100" max="5000" step="100" value="1000">
             </div>
 
             <div class="control-group">
@@ -188,6 +184,16 @@
             <div class="control-group">
                 <label for="coolingRate"><span id="lblRate">冷却速率:</span> <span id="rateVal">0.990</span></label>
                 <input type="range" id="coolingRate" min="0.800" max="0.999" step="0.001" value="0.990">
+            </div>
+
+            <div class="control-group">
+                <label for="initialX"><span id="lblInitX">初始位置 (X):</span> <span id="xVal">0.0</span></label>
+                <input type="range" id="initialX" min="-10" max="10" step="0.5" value="0">
+            </div>
+            
+            <div class="control-group" id="yControlGroup" style="display: none;">
+                <label for="initialY"><span id="lblInitY">初始位置 (Y):</span> <span id="yVal">0.0</span></label>
+                <input type="range" id="initialY" min="-10" max="10" step="0.5" value="0">
             </div>
 
             <div class="btn-group">
@@ -203,9 +209,11 @@
             zh: {
                 title: "模拟退火算法",
                 desc: "调整参数，观察粒子如何跳出局部最优，寻找全局最低点。",
+                lblCurIter: "当前迭代:",
                 lblTemp: "当前温度:",
-                lblCost: "当前能量(高度):",
-                lblBest: "历史最低能量:",
+                lblCost: "当前能量:",
+                lblBest: "历史最低:",
+                lblMaxIter: "最大迭代次数:",
                 lblInitX: "初始位置 (X):",
                 lblInitY: "初始位置 (Y):",
                 lblInitTemp: "初始温度:",
@@ -222,9 +230,11 @@
             en: {
                 title: "Simulated Annealing Algorithm",
                 desc: "Adjust parameters and observe how the particle escapes local optima.",
+                lblCurIter: "Current Iter:",
                 lblTemp: "Current Temp:",
                 lblCost: "Current Energy:",
                 lblBest: "Best Energy:",
+                lblMaxIter: "Max Iterations:",
                 lblInitX: "Initial Pos (X):",
                 lblInitY: "Initial Pos (Y):",
                 lblInitTemp: "Initial Temp:",
@@ -247,9 +257,11 @@
             const t = dict[currentLang];
             document.getElementById('pageTitle').textContent = t.title;
             document.getElementById('pageDesc').textContent = t.desc;
+            document.getElementById('lblCurIter').textContent = t.lblCurIter;
             document.getElementById('lblTemp').textContent = t.lblTemp;
             document.getElementById('lblCost').textContent = t.lblCost;
             document.getElementById('lblBest').textContent = t.lblBest;
+            document.getElementById('lblMaxIter').textContent = t.lblMaxIter;
             document.getElementById('lblInitX').textContent = t.lblInitX;
             document.getElementById('lblInitY').textContent = t.lblInitY;
             document.getElementById('lblInitTemp').textContent = t.lblInitTemp;
@@ -258,11 +270,12 @@
             document.getElementById('langToggleBtn').textContent = t.langText;
             document.getElementById('modeToggleBtn').textContent = is3DMode ? t.modeText3D : t.modeText2D;
 
-            if (temperature < 0.01) {
+            // 根据是否触及温度阈值 或 迭代阈值 判断状态
+            if (temperature < 0.01 || currentIteration >= maxIterations) {
                 document.getElementById('startBtn').textContent = t.btnComplete;
             } else if (isAnimating) {
                 document.getElementById('startBtn').textContent = t.btnPause;
-            } else if (temperature < parseFloat(tempSlider.value)) {
+            } else if (currentIteration > 0) {
                 document.getElementById('startBtn').textContent = t.btnResume;
             } else {
                 document.getElementById('startBtn').textContent = t.btnStart;
@@ -278,7 +291,6 @@
             is3DMode = !is3DMode;
             document.getElementById('saCanvas').style.display = is3DMode ? 'none' : 'block';
             document.getElementById('plot3D').style.display = is3DMode ? 'block' : 'none';
-            // 控制 Y 轴滑块的显示与隐藏
             document.getElementById('yControlGroup').style.display = is3DMode ? 'flex' : 'none';
             reset(); 
         });
@@ -290,28 +302,28 @@
         const ySlider = document.getElementById('initialY');
         const tempSlider = document.getElementById('initialTemp');
         const rateSlider = document.getElementById('coolingRate');
+        const iterSlider = document.getElementById('maxIter');
         
         const tempDisplay = document.getElementById('tempDisplay');
         const currentCostDisplay = document.getElementById('currentCostDisplay');
         const bestCostDisplay = document.getElementById('bestCostDisplay');
+        const iterDisplay = document.getElementById('iterDisplay');
         const startBtn = document.getElementById('startBtn');
 
-        // 【重塑地形】使用更宽广的坑谷，减少密集的局部最优
         function f2D(x) { return (x * x) / 10 - 4 * Math.cos(x); }
         function f3D(x, y) { return (x * x + y * y) / 10 - 4 * Math.cos(x) - 4 * Math.cos(y); }
 
-        // 将范围稍微收缩，让曲线细节更大、更清晰
         const bounds = { min: -10, max: 10 };
         let currentX, currentY, currentCost;
         let bestX, bestY, bestCost;
         let temperature, coolingRate;
+        let currentIteration = 0, maxIterations = 1000;
         let isAnimating = false;
         let animationId;
         let isPlotlyInitialized = false;
 
         // ---------------- 2D 渲染 ----------------
         function mapX(x) { return (x - bounds.min) / (bounds.max - bounds.min) * canvas.width; }
-        // 调整 Y 轴映射比例适应新函数
         function mapY(y) { return canvas.height - ((y + 6) / 24 * canvas.height); }
 
         function draw2D() {
@@ -368,6 +380,14 @@
         }
 
         // ---------------- UI 交互逻辑 ----------------
+        iterSlider.oninput = () => {
+            document.getElementById('maxIterVal').textContent = iterSlider.value;
+            if (!isAnimating) {
+                maxIterations = parseInt(iterSlider.value);
+                applyLanguage(); // 如果调大了最大值，可能会把“搜索完成”变回“继续搜索”
+            }
+        };
+
         xSlider.oninput = () => {
             document.getElementById('xVal').textContent = parseFloat(xSlider.value).toFixed(1);
             cancelAnimationFrame(animationId); isAnimating = false;
@@ -378,6 +398,9 @@
             
             bestX = currentX; bestY = currentY; bestCost = currentCost;
             temperature = parseFloat(tempSlider.value); coolingRate = parseFloat(rateSlider.value);
+            
+            // 只要重置了位置，就算作重新开始，清空迭代次数
+            currentIteration = 0;
 
             applyLanguage(); updateStats();
             is3DMode ? updatePlotly() : draw2D();
@@ -393,6 +416,7 @@
             
             bestX = currentX; bestY = currentY; bestCost = currentCost;
             temperature = parseFloat(tempSlider.value); coolingRate = parseFloat(rateSlider.value);
+            currentIteration = 0;
 
             applyLanguage(); updateStats();
             updatePlotly();
@@ -402,7 +426,7 @@
             document.getElementById('tempVal').textContent = tempSlider.value;
             if (!isAnimating) {
                 temperature = parseFloat(tempSlider.value);
-                applyLanguage(); tempDisplay.textContent = temperature.toFixed(2);
+                applyLanguage(); updateStats();
             }
         };
 
@@ -412,6 +436,7 @@
         };
 
         function updateStats() {
+            iterDisplay.textContent = currentIteration;
             tempDisplay.textContent = temperature.toFixed(2);
             currentCostDisplay.textContent = currentCost.toFixed(2);
             bestCostDisplay.textContent = bestCost.toFixed(2);
@@ -421,12 +446,15 @@
             cancelAnimationFrame(animationId); isAnimating = false;
             
             currentX = parseFloat(xSlider.value);
-            // 现在重置时，3D模式下也会严格采用 Y 滑块设定的位置
             currentY = is3DMode ? parseFloat(ySlider.value) : 0; 
             currentCost = is3DMode ? f3D(currentX, currentY) : f2D(currentX);
             
             bestX = currentX; bestY = currentY; bestCost = currentCost;
-            temperature = parseFloat(tempSlider.value); coolingRate = parseFloat(rateSlider.value);
+            
+            temperature = parseFloat(tempSlider.value); 
+            coolingRate = parseFloat(rateSlider.value);
+            maxIterations = parseInt(iterSlider.value);
+            currentIteration = 0;
 
             applyLanguage(); updateStats();
             
@@ -439,9 +467,14 @@
         }
 
         function step() {
-            if (temperature < 0.01) {
-                isAnimating = false; startBtn.textContent = dict[currentLang].btnComplete; return;
+            // 【核心修改】：如果温度降至极点，或者迭代次数用尽，则停止搜索
+            if (temperature < 0.01 || currentIteration >= maxIterations) {
+                isAnimating = false; 
+                startBtn.textContent = dict[currentLang].btnComplete; 
+                return;
             }
+
+            currentIteration++; // 计数器+1
 
             let stepSize = (temperature / 25) + 0.1; 
             
@@ -488,8 +521,12 @@
                 isAnimating = false; cancelAnimationFrame(animationId);
                 startBtn.textContent = dict[currentLang].btnResume;
             } else {
+                // 如果已经达到最大次数，但用户依然点击开始，我们什么都不做（或者提示重置）
+                if (currentIteration >= maxIterations || temperature < 0.01) return;
+
                 isAnimating = true; startBtn.textContent = dict[currentLang].btnPause;
-                coolingRate = parseFloat(rateSlider.value); step();
+                coolingRate = parseFloat(rateSlider.value); 
+                step();
             }
         });
 
