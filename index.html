@@ -55,9 +55,12 @@
             width: 100%;
         }
 
+        /* 修复后的视觉容器：高度自适应手机屏幕 */
         .visual-area {
             width: 100%;
-            height: 400px;
+            height: 50vh; /* 默认占据屏幕的一半高度 */
+            max-height: 400px; /* 电脑上最高不超过 400px */
+            min-height: 280px; /* 手机上最矮不低于 280px */
             position: relative;
             border: 1px solid #eee;
             border-radius: 8px;
@@ -158,8 +161,8 @@
     <p id="pageDesc">调整参数，观察粒子如何跳出局部最优，寻找全局最低点。</p>
 
     <div class="container">
-        <div class="visual-area">
-            <canvas id="saCanvas" width="760" height="400"></canvas>
+        <div class="visual-area" id="visualArea">
+            <canvas id="saCanvas"></canvas>
             <div id="plot3D"></div>
         </div>
 
@@ -270,7 +273,6 @@
             document.getElementById('langToggleBtn').textContent = t.langText;
             document.getElementById('modeToggleBtn').textContent = is3DMode ? t.modeText3D : t.modeText2D;
 
-            // 根据是否触及温度阈值 或 迭代阈值 判断状态
             if (temperature < 0.01 || currentIteration >= maxIterations) {
                 document.getElementById('startBtn').textContent = t.btnComplete;
             } else if (isAnimating) {
@@ -292,12 +294,15 @@
             document.getElementById('saCanvas').style.display = is3DMode ? 'none' : 'block';
             document.getElementById('plot3D').style.display = is3DMode ? 'block' : 'none';
             document.getElementById('yControlGroup').style.display = is3DMode ? 'flex' : 'none';
+            // 切换模式时重新测量并渲染
+            handleResize();
             reset(); 
         });
 
         // ---------------- 核心算法与数据 ----------------
         const canvas = document.getElementById('saCanvas');
         const ctx = canvas.getContext('2d');
+        const visualArea = document.getElementById('visualArea');
         const xSlider = document.getElementById('initialX');
         const ySlider = document.getElementById('initialY');
         const tempSlider = document.getElementById('initialTemp');
@@ -322,11 +327,30 @@
         let animationId;
         let isPlotlyInitialized = false;
 
+        // ---------------- 动态画布重置方案 ----------------
+        // 这个函数保证画布分辨率永远和实际显示尺寸一致，解决小球变椭圆的问题
+        function handleResize() {
+            canvas.width = visualArea.clientWidth;
+            canvas.height = visualArea.clientHeight;
+            
+            if (is3DMode) {
+                if (isPlotlyInitialized) {
+                    Plotly.Plots.resize('plot3D');
+                }
+            } else {
+                draw2D();
+            }
+        }
+        window.addEventListener('resize', handleResize);
+
         // ---------------- 2D 渲染 ----------------
         function mapX(x) { return (x - bounds.min) / (bounds.max - bounds.min) * canvas.width; }
         function mapY(y) { return canvas.height - ((y + 6) / 24 * canvas.height); }
 
         function draw2D() {
+            // 如果画布宽度为0说明还没初始化好，跳过
+            if(canvas.width === 0) return; 
+
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.strokeStyle = "#eee"; ctx.beginPath();
             ctx.moveTo(0, mapY(0)); ctx.lineTo(canvas.width, mapY(0));
@@ -340,6 +364,7 @@
             }
             ctx.stroke();
 
+            // 绘制最优解和小球
             ctx.beginPath(); ctx.arc(mapX(bestX), mapY(bestCost), 8, 0, Math.PI * 2);
             ctx.fillStyle = "rgba(211, 84, 0, 0.5)"; ctx.fill();
             ctx.strokeStyle = "#d35400"; ctx.lineWidth = 2; ctx.stroke();
@@ -369,7 +394,7 @@
                 showlegend: false
             };
 
-            Plotly.newPlot('plot3D', [surface, bestPt, currPt], layout, {displayModeBar: false});
+            Plotly.newPlot('plot3D', [surface, bestPt, currPt], layout, {displayModeBar: false, responsive: true});
             isPlotlyInitialized = true;
         }
 
@@ -384,7 +409,7 @@
             document.getElementById('maxIterVal').textContent = iterSlider.value;
             if (!isAnimating) {
                 maxIterations = parseInt(iterSlider.value);
-                applyLanguage(); // 如果调大了最大值，可能会把“搜索完成”变回“继续搜索”
+                applyLanguage(); 
             }
         };
 
@@ -398,8 +423,6 @@
             
             bestX = currentX; bestY = currentY; bestCost = currentCost;
             temperature = parseFloat(tempSlider.value); coolingRate = parseFloat(rateSlider.value);
-            
-            // 只要重置了位置，就算作重新开始，清空迭代次数
             currentIteration = 0;
 
             applyLanguage(); updateStats();
@@ -467,14 +490,13 @@
         }
 
         function step() {
-            // 【核心修改】：如果温度降至极点，或者迭代次数用尽，则停止搜索
             if (temperature < 0.01 || currentIteration >= maxIterations) {
                 isAnimating = false; 
                 startBtn.textContent = dict[currentLang].btnComplete; 
                 return;
             }
 
-            currentIteration++; // 计数器+1
+            currentIteration++;
 
             let stepSize = (temperature / 25) + 0.1; 
             
@@ -521,9 +543,7 @@
                 isAnimating = false; cancelAnimationFrame(animationId);
                 startBtn.textContent = dict[currentLang].btnResume;
             } else {
-                // 如果已经达到最大次数，但用户依然点击开始，我们什么都不做（或者提示重置）
                 if (currentIteration >= maxIterations || temperature < 0.01) return;
-
                 isAnimating = true; startBtn.textContent = dict[currentLang].btnPause;
                 coolingRate = parseFloat(rateSlider.value); 
                 step();
@@ -531,6 +551,9 @@
         });
 
         document.getElementById('resetBtn').addEventListener('click', reset);
+        
+        // 首次加载时立刻校准屏幕大小并重置
+        handleResize();
         reset();
     </script>
 </body>
