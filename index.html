@@ -25,9 +25,11 @@
             max-width: 800px;
             display: flex;
             justify-content: space-between;
+            align-items: center;
             margin-bottom: 10px;
         }
 
+        /* 普通切换按钮（语言按钮）保持低调 */
         .toggle-btn {
             background: #ffffff;
             color: #2c3e50;
@@ -40,8 +42,35 @@
             transition: all 0.3s;
             box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         }
-
         .toggle-btn:hover { background: #ecf0f1; border-color: #95a5a6; }
+
+        /* ====== 新增：为 3D 切换按钮定制的高亮样式 ====== */
+        #modeToggleBtn {
+            background: linear-gradient(135deg, #f39c12, #e74c3c); /* 热量/退火主题渐变色 */
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 25px;
+            font-size: 15px;
+            font-weight: 800;
+            box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4);
+            animation: subtlePulse 2.5s infinite; /* 呼吸灯动画 */
+            transition: all 0.3s;
+        }
+        #modeToggleBtn:hover {
+            background: linear-gradient(135deg, #e67e22, #c0392b);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(231, 76, 60, 0.6);
+            animation: none; /* 鼠标悬停时停止呼吸灯，保持突出 */
+        }
+        
+        /* 呼吸灯关键帧动画 */
+        @keyframes subtlePulse {
+            0% { transform: scale(1); box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4); }
+            50% { transform: scale(1.04); box-shadow: 0 6px 16px rgba(231, 76, 60, 0.6); }
+            100% { transform: scale(1); box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4); }
+        }
+        /* ============================================== */
 
         h1 { margin-bottom: 10px; color: #2c3e50; text-align: center; }
         p { margin-top: 0; color: #7f8c8d; text-align: center; }
@@ -55,12 +84,11 @@
             width: 100%;
         }
 
-        /* 修复后的视觉容器：高度自适应手机屏幕 */
         .visual-area {
             width: 100%;
-            height: 50vh; /* 默认占据屏幕的一半高度 */
-            max-height: 400px; /* 电脑上最高不超过 400px */
-            min-height: 280px; /* 手机上最矮不低于 280px */
+            height: 50vh;
+            max-height: 400px;
+            min-height: 280px;
             position: relative;
             border: 1px solid #eee;
             border-radius: 8px;
@@ -153,7 +181,7 @@
 <body>
 
     <div class="top-bar">
-        <button id="modeToggleBtn" class="toggle-btn">🔲 切换至 3D 向量模式</button>
+        <button id="modeToggleBtn">🔲 切换至 3D 向量模式</button>
         <button id="langToggleBtn" class="toggle-btn">🌐 English</button>
     </div>
 
@@ -294,7 +322,17 @@
             document.getElementById('saCanvas').style.display = is3DMode ? 'none' : 'block';
             document.getElementById('plot3D').style.display = is3DMode ? 'block' : 'none';
             document.getElementById('yControlGroup').style.display = is3DMode ? 'flex' : 'none';
-            // 切换模式时重新测量并渲染
+            
+            // 切换模式时改变按钮的视觉表现（如果在3D模式，可以换回比较内敛的颜色表示退出）
+            const modeBtn = document.getElementById('modeToggleBtn');
+            if (is3DMode) {
+                modeBtn.style.background = 'linear-gradient(135deg, #7f8c8d, #34495e)';
+                modeBtn.style.boxShadow = '0 4px 12px rgba(52, 73, 94, 0.4)';
+            } else {
+                modeBtn.style.background = 'linear-gradient(135deg, #f39c12, #e74c3c)';
+                modeBtn.style.boxShadow = '0 4px 12px rgba(231, 76, 60, 0.4)';
+            }
+
             handleResize();
             reset(); 
         });
@@ -327,8 +365,6 @@
         let animationId;
         let isPlotlyInitialized = false;
 
-        // ---------------- 动态画布重置方案 ----------------
-        // 这个函数保证画布分辨率永远和实际显示尺寸一致，解决小球变椭圆的问题
         function handleResize() {
             canvas.width = visualArea.clientWidth;
             canvas.height = visualArea.clientHeight;
@@ -348,7 +384,6 @@
         function mapY(y) { return canvas.height - ((y + 6) / 24 * canvas.height); }
 
         function draw2D() {
-            // 如果画布宽度为0说明还没初始化好，跳过
             if(canvas.width === 0) return; 
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -364,7 +399,6 @@
             }
             ctx.stroke();
 
-            // 绘制最优解和小球
             ctx.beginPath(); ctx.arc(mapX(bestX), mapY(bestCost), 8, 0, Math.PI * 2);
             ctx.fillStyle = "rgba(211, 84, 0, 0.5)"; ctx.fill();
             ctx.strokeStyle = "#d35400"; ctx.lineWidth = 2; ctx.stroke();
@@ -552,7 +586,6 @@
 
         document.getElementById('resetBtn').addEventListener('click', reset);
         
-        // 首次加载时立刻校准屏幕大小并重置
         handleResize();
         reset();
     </script>
